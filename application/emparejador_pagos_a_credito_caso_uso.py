@@ -1,3 +1,5 @@
+# application/emparejador_pagos_a_credito_caso_uso.py
+
 from collections import defaultdict
 from datetime import date
 from typing import Dict, List

@@ -1,4 +1,4 @@
-# infrastructure/txt/generador_reporte_txt.py
+# infrastructure/report_generators/generador_reporte_txt.py
 
 import re
 from config.app_config import config

@@ -1,3 +1,4 @@
+# infrastructure/extractors/extractor_de_pagos_por_nit_bancolombia.py
 import os
 import re
 import json
@@ -70,12 +71,19 @@ class ExtractorDePagosPorNitBancolombia(BaseModel):
 
             return nit_pagos_total
 
+        except FileNotFoundError as e:
+            logging.error(
+                f"Archivo PDF no encontrado en la ruta: {directorio_pdf}",
+                exc_info=True
+            )
+            raise e
+        
         except Exception as e:
             logging.error(
                 f"Error al obtener los datos del archivo .pdf >>> {e}",
                 exc_info=True
             )
-            return {}
+            raise e  # Re-raise the exception after logging
 
 if __name__ == "__main__":
     

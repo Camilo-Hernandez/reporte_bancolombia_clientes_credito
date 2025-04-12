@@ -8,11 +8,9 @@ from infrastructure.extractors.extractor_de_pagos_por_nit_bancolombia import (
 from infrastructure.extractors.extractor_pago_pdf import ExtractorPagosPDF
 from infrastructure.report_generators.generador_reporte_txt import GeneradorReporteTxt
 from firebase_admin import db
-from config.app_config import config
-from infrastructure.repositories.firebase_repositorio_pedido import (
+from infrastructure.repositories.firebase_repositorio_pedidos import (
     FirebaseRepositorioPedidos,
 )
-from firebase_admin import initialize_app
 
 
 class Container(containers.DeclarativeContainer):
@@ -21,18 +19,15 @@ class Container(containers.DeclarativeContainer):
     # Definir un proveedor de configuración
     config = providers.Configuration()
 
-    # Initialize Firebase app
-    firebase_app = providers.Singleton(initialize_app)
-
     # Provide the Firebase database reference
     firebase_pedidos_reference = providers.Singleton(
-        db.reference, path="/pedidos", app=firebase_app.provided
+        db.reference, path="/pedidos"
     )
     
     # Bind AbstractRepositorioPedidos to FirebaseRepositorioPedidos
     repositorio_pedidos = providers.Singleton(
         FirebaseRepositorioPedidos,
-        firebase_reference=firebase_pedidos_reference.provided,
+        firebase_reference=firebase_pedidos_reference,
     )
 
     procesador_pdf = providers.Factory(

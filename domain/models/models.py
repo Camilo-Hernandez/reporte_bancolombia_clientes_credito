@@ -1,4 +1,4 @@
-# domain/models.py
+# domain/models/models.py
 from datetime import date, timedelta
 import datetime
 from decimal import Decimal
@@ -42,6 +42,19 @@ class EstadoPago(str, Enum):
     PENDIENTE = "pendiente"
     PARCIAL = "parcial"
     PAGADO = "pagado"
+
+
+class EstadoPedido(int, Enum):
+    """
+    Enum para el estado del pedido en el sistema externo.
+    """
+
+    FACTURADO = 0
+    EMPACADO = 1
+    PENDIENTE = 3
+    DESPACHADO = 2
+    TESORERIA = 4
+    CREDITO_POBLACION = 5
 
 
 class Cliente(BaseModel):
@@ -100,19 +113,6 @@ class Pago(BaseModel):
     )
 
 
-class EstadoPedido(int, Enum):
-    """
-    Enum para el estado del pedido en el sistema externo.
-    """
-
-    FACTURADO = 0
-    EMPACADO = 1
-    PENDIENTE = 3
-    DESPACHADO = 2
-    TESORERIA = 4
-    CREDITO_POBLACION = 5
-
-
 class Pedido(BaseModel):
     """
     Attr:
@@ -128,6 +128,8 @@ class Pedido(BaseModel):
     id_pedido: str = Field(
         ...,
         description="ID único del pedido/factura obtenido del sistema externo",
+        strict = True, # Ensure it's a string
+        min_length = 1,  # Ensure it's not empty
     )
     estado_pedido: EstadoPedido = Field(
         ...,

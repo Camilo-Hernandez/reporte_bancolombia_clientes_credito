@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 from decimal import Decimal
-from infrastructure.repositories.firebase_repositorio_pedido import (
+from infrastructure.repositories.firebase_repositorio_pedidos import (
     FirebaseRepositorioPedidos,
 )
 from domain.models.models import EstadoPedido

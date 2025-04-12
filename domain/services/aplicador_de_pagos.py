@@ -1,4 +1,4 @@
-# domain/services/aplicador_pagos.py
+# domain/services/aplicador_de_pagos.py
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum

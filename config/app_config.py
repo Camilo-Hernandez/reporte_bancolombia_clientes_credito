@@ -1,3 +1,4 @@
+# config/app_config.py  
 import os
 import firebase_admin
 from firebase_admin import credentials
@@ -15,7 +16,7 @@ class AppConfig:
     _cuentas_contables_ingreso_egreso_ahorro = ("11200501", "130505")
 
     # Directorio de donde se extraen los reportes de pagos (extractos bancarios)
-    _directorio_pagos = "G:\.shortcut-targets-by-id\1A2UP-JKrQvJV0SCMSD0IDa3ts-uOUJVR\Despachos\bancolombia_data"
+    _directorio_pagos = r"G:\.shortcut-targets-by-id\1A2UP-JKrQvJV0SCMSD0IDa3ts-uOUJVR\Despachos\bancolombia_data"
 
     # Directorio donde se guardarán los reportes generados
 

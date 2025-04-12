@@ -1,4 +1,5 @@
-# domain/ports/repositorio_pedidos.py
+# application/ports/interfaces.py
+
 from abc import ABC, abstractmethod
 from typing import List
 from datetime import date

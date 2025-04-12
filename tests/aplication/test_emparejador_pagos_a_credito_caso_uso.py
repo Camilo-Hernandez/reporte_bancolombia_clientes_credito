@@ -15,7 +15,7 @@ from domain.models.models import (
 )
 
 from application.emparejador_pagos_a_credito_caso_uso import EmparejadorPagosACreditoCasoUso
-from infrastructure.repositories.firebase_repositorio_pedido import FirebaseRepositorioPedidos
+from infrastructure.repositories.firebase_repositorio_pedidos import FirebaseRepositorioPedidos
 
 
 @pytest.fixture
@@ -120,10 +120,6 @@ def container():
     container.config.override(
         {"directorio_pagos": "test_pagos_path", "fecha_pdf": "20230401"}
     )
-
-    # Mock Firebase initialization
-    mock_initialize_app = MagicMock()
-    container.firebase_app.override(mock_initialize_app)
 
     # Mock Firebase database reference
     mock_db_reference = MagicMock()
