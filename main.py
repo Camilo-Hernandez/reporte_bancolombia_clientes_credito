@@ -41,14 +41,15 @@ def main(fecha: str):
         print(f"\n\nEjecutando para Ahorros - Fecha: {fecha}")
         caso_uso.ejecutar(fecha, tipo_cuenta=TipoCuentaBancaria.AHORROS.value)
         print(f"\n\nEjecutando para Corriente - Fecha: {fecha}")
-        caso_uso.ejecutar(fecha, tipo_cuenta=TipoCuentaBancaria.CORRIENTE.value)
+        caso_uso.ejecutar(
+            fecha, tipo_cuenta=TipoCuentaBancaria.CORRIENTE.value)
         print("Ejecución completada.")
     except Exception as e:
         print(f"Error durante la ejecución del caso de uso: {e}")
         # Add more specific error handling or logging if needed
         import traceback
-
         traceback.print_exc()
+        raise
 
     # Unwire if you wired explicitly
     container.unwire()

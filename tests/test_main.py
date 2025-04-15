@@ -1,5 +1,7 @@
+from annotated_types import T
 import pytest
 from unittest.mock import patch, MagicMock
+from domain.models.models import TipoCuentaBancaria
 from main import main
 
 @pytest.fixture
@@ -54,10 +56,10 @@ def test_main_success(mock_app_config, mock_container, mock_logger):
 
         # Verify use case execution
         mock_container.emparejador_pagos.return_value.ejecutar.assert_any_call(
-            "20250410", tipo_cuenta="AHORROS"
+            "20250410", tipo_cuenta=TipoCuentaBancaria.AHORROS.value
         )
         mock_container.emparejador_pagos.return_value.ejecutar.assert_any_call(
-            "20250410", tipo_cuenta="CORRIENTE"
+            "20250410", tipo_cuenta=TipoCuentaBancaria.CORRIENTE.value
         )
 
 

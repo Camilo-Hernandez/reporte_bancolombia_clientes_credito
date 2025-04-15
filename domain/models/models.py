@@ -1,12 +1,16 @@
 # domain/models/models.py
 
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+import config
+from typing import Optional, List
 from datetime import date, timedelta
 import datetime
 from decimal import Decimal
 import re
-from typing import Optional, List
+from turtle import st
+from typing import Optional, List, Union
 import uuid
-from pydantic import BaseModel, ConfigDict, Field, field_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from enum import Enum
 
 from config.app_config import config
@@ -22,7 +26,6 @@ class TipoCuentaBancaria(str, Enum):
     AHORROS = "ahorros"
     CORRIENTE = "corriente"
 
-
 class TipoCliente(str, Enum):
     """
     Enum para el tipo de cliente:
@@ -32,7 +35,6 @@ class TipoCliente(str, Enum):
 
     CONTADO = "contado"
     CREDITO = "credito"
-
 
 class EstadoPago(str, Enum):
     """
@@ -46,7 +48,6 @@ class EstadoPago(str, Enum):
     PENDIENTE = "pendiente"
     PARCIAL = "parcial"
     PAGADO = "pagado"
-
 
 class EstadoPedido(int, Enum):
     """
@@ -68,7 +69,6 @@ class EstadoPedido(int, Enum):
     TESORERIA = 4
     CREDITO_POBLACION = 5
 
-
 class Cliente(BaseModel):
     """
     Attr:
@@ -83,28 +83,37 @@ class Cliente(BaseModel):
         ...,
         description="ID del cliente obtenido del sistema externo",
         strict=True,
+        min_length=1,  # Ensure it's not empty
     )
     nit_cliente: str = Field(
         ...,
         description="NIT o Cédula del cliente",
-        strict=True
+        strict=True,
+        min_length=1,  # Ensure it's not empty
         )
     razon_social: str = Field(
         ...,
         description="Nombre o Razón Social del cliente",
-        strict=True
+        strict=True,
+        min_length=1,  # Ensure it's not empty
         )
     tipo_cliente: TipoCliente = Field(
         ...,
         description="Tipo de cliente (Contado/Credito)",
         strict=True,
+        # min_length=1
     )
-    plazo_dias_credito: Optional[int] = Field(
+    plazo_dias_credito: int = Field(
         None,
         description="Días de plazo si es a crédito",
         strict=True,
     )
-
+    @field_validator("plazo_dias_credito")
+    def validate_plazo_dias_credito_non_negative(cls, value):
+        if value < 0:
+            raise ValueError(
+                "El campo 'plazo_dias_credito' no puede ser negativo.")
+        return value
 
 class Pago(BaseModel):
     """
@@ -127,6 +136,7 @@ class Pago(BaseModel):
         ...,
         description="NIT del cliente que realiza el pago",
         strict=True,  # Ensure it's a string
+        min_length=1
     )
     monto: Decimal = Field(
         ...,
@@ -136,7 +146,7 @@ class Pago(BaseModel):
     fecha_pago: date = Field(
         ...,
         description="Fecha en que se registró el pago (del extracto)",
-        strict=True,
+        strict=True,        
     )
     referencia_bancaria: Optional[str] = Field(
         None,
@@ -144,6 +154,32 @@ class Pago(BaseModel):
         strict=True,
     )
 
+    @field_validator("nit_cliente")
+    def validate_nit_cliente(cls, value):
+        if not value or not isinstance(value, str):
+            raise ValueError(
+                "El campo 'nit_cliente' debe ser una cadena no vacía.")
+        return value
+
+    @field_validator("monto")
+    def validate_monto(cls, value):
+        if value < 0:
+            raise ValueError("El campo 'monto' no puede ser negativo.")
+        return value
+
+    @field_validator("fecha_pago")
+    def validate_fecha_pago(cls, value):
+        if value is None or not isinstance(value, date):
+            raise ValueError(
+                "El campo 'fecha_pago' debe ser una fecha válida.")
+        return value
+
+    @field_validator("referencia_bancaria")
+    def validate_referencia_bancaria(cls, value):
+        if value is not None and value.strip() == "":
+            raise ValueError(
+                "El campo 'referencia_bancaria' no puede ser una cadena vacía.")
+        return value
 
 class Pedido(BaseModel):
     """
@@ -154,7 +190,7 @@ class Pedido(BaseModel):
         - valor_neto: Decimal = Valor total del pedido/factura
         - valor_cobrado: Decimal = Valor ya abonado a este pedido
         - fecha_pedido: date = Fecha de creación/facturación del pedido
-        - forma_pago_raw: str = Texto original de la forma de pago (guardamos el original por si acaso)
+        - plazo_dias_credito: str = Texto original de la forma de pago (guardamos el original por si acaso)
     """
 
     id_pedido: str = Field(
@@ -165,39 +201,42 @@ class Pedido(BaseModel):
     )
     estado_pedido: EstadoPedido = Field(
         ...,
-        strict=True, 
         description="Estado del pedido en el sistema externo (ej. 0, 1, 2, 3, 4, 5)",
+        strict=True, 
     )
     nit_cliente: str = Field(
         ...,
         strict=True,
         description="NIT del cliente asociado al pedido obtenido del sistema externo",
+        min_length=1,
+    )
+    plazo_dias_credito: int = Field(
+        0,
+        description="Plazo de días de crédito del cliente asociado al pedido",
+        strict=True,
+        ge=0,  # Ensure it's a non-negative integer
     )
     valor_neto: Decimal = Field(
         ...,
+        description="Valor total del pedido/factura obtenido del sistema externo",
         strict=True,
-        description="Valor total del pedido/factura obtenido del sistema externo"
     )
     fecha_pedido: date = Field(
         ...,
-        strict=True,
         description="Fecha de creación/facturación del pedido obtenido del sistema externo",
+        strict=True,
     )
-    forma_pago_raw: str = Field(
-        ..., 
-        strict=True,
-        description="Texto original de la forma de pago"
-    )  # Guardamos el original por si acaso}
-    razon_social: Optional[str] = Field(
+    razon_social: str = Field(
         None,
+        description="Razón social del cliente asociado al pedido",
         strict=True,
-        description="Razón social del cliente asociado al pedido"
     )
     # --- Campos de Estado (gestionados por el servicio de dominio) ---
     estado_pago: EstadoPago = Field(
         EstadoPago.PENDIENTE,
         strict=True,
-        description="Estado actual del pago del pedido."
+        description="Estado actual del pago del pedido.",
+        min_length=1
     )
     valor_cobrado: Decimal = Field(
         Decimal("0.0"),
@@ -209,7 +248,7 @@ class Pedido(BaseModel):
         strict=True,
         description="Lista de fechas de abono del pedido",
     )
-    fecha_pago_completado: Optional[date] = Field(
+    fecha_pago_completado: Union[date, None] = Field(
         None,
         strict=True,
         description="Fecha en que se registró el pago que supera el porcentaje mínimo para considerar el pedido como pagado, dado en config/setting.py",
@@ -220,27 +259,16 @@ class Pedido(BaseModel):
         description="Indica si la factura está vencida (calculada al momento de la consulta)",
     )
 
-    @field_validator("forma_pago_raw")
-    def procesar_forma_pago(cls, value):
-        """
-        Valida o procesa el valor de forma_pago_raw durante la creación del objeto.
-        """
-        if not value:
-            raise ValueError("forma_pago_raw no puede estar vacío.")
+    # Permitir cambios post-creación
+    model_config = ConfigDict(frozen=False, strict=True)
+
+    @field_validator("valor_neto", "valor_cobrado")
+    @classmethod
+    def validar_valores_no_negativos(cls, value):
+        if value < 0:
+            raise ValueError("Debe ser un valor no negativo")
         return value
 
-    @property
-    def plazo_dias_credito(self) -> int:
-        """
-        Extrae el plazo en días de crédito desde forma_pago_raw.
-        Si no se encuentra, devuelve 0, como sucede con los clientes a contado.
-        """
-        if not self.forma_pago_raw:
-            return 0
-        dias_match = re.search(
-            r"A\s+(\d+)\s+d[ií]as", self.forma_pago_raw, re.IGNORECASE
-        )
-        return int(dias_match.group(1)) if dias_match else 0
 
     @property
     def tipo_cliente(self) -> TipoCliente:
@@ -260,14 +288,19 @@ class Pedido(BaseModel):
             days=self.plazo_dias_credito + config.dias_gracia_vencimiento
         )
 
-    def actualizar_estado_vencimiento_para_pago(self, fecha_pago: date) -> None:
-        """Actualiza el estado de vencimiento según la fecha de referencia cada vez que se llama."""
-        self.factura_vencida = (
-            self.fecha_pago_completado is None or self.fecha_vencimiento <= fecha_pago
-        )
+    def _actualizar_factura_vencida(self) -> None:
+        referencia = self.fecha_pago_completado or date.today()
+        self.factura_vencida = self.fecha_vencimiento <= referencia
 
-    # Para modificar los atributos del modelo después de su creación.
-    model_config = ConfigDict(frozen=False)
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name in {"fecha_pedido", "plazo_dias_credito", "fecha_pago_completado"}:
+            try:
+                self._actualizar_factura_vencida()
+            except Exception:
+                pass  # Evita errores durante validación o creación temprana del modelo
+
+
 
 
 class ResultadoPagoCliente(BaseModel):
@@ -276,7 +309,7 @@ class ResultadoPagoCliente(BaseModel):
         - nit_cliente: str = NIT del cliente asociado al pago
         - fecha_pago: date = Fecha en que se registró el pago (del extracto)
         - pago_extracto: Decimal = Monto total del pago recibido del extracto
-        - deuda_restante: Decimal = Deuda restante después de aplicar el pago
+        - deuda_restante: Decimal = Deuda restante después de aplicar el pago. Puede ser positivo si aún debe o negativo si tiene a favor.
         - facturas_pagadas: List[Pedido] = Facturas que fueron pagadas con este pago
         - facturas_parciales: List[Pedido] = Facturas que están o fueron parcialmente pagadas
         - facturas_pendientes: List[Pedido] = Facturas que siguen pendientes después del pago
@@ -287,8 +320,14 @@ class ResultadoPagoCliente(BaseModel):
         ...,
         description="ID único del pago (UUID generado a partir de la fecha y un UUID aleatorio)",
         strict=True,
+        min_length=1
     )
-    nit_cliente: str = Field(..., description="NIT del cliente")
+    nit_cliente: str = Field(
+        ...,
+        description="NIT del cliente",
+        strict=True,
+        min_length=1
+        )
     fecha_pago: date = Field(
         ...,
         description="Fecha en que se registró el pago (del extracto)",
@@ -298,6 +337,7 @@ class ResultadoPagoCliente(BaseModel):
         ...,
         description="Monto total del pago recibido del extracto",
         strict=True,
+        gt=0,  # Ensure it's a positive value
     )
     facturas_pagadas: List[Pedido] = Field(
         ..., 
@@ -318,6 +358,7 @@ class ResultadoPagoCliente(BaseModel):
         ..., 
         description="Tipo de cliente (Contado/Credito)",
         strict=True,
+        min_length=1
     )
     # --- Resumen de Estado Post-Pago --- #
     deuda_total_anterior: Decimal = Field(
@@ -330,3 +371,17 @@ class ResultadoPagoCliente(BaseModel):
         description="Deuda restante después de aplicar el pago",
         strict=True,
     )
+
+    @field_validator("pago_extracto")
+    def validate_pago_extracto_non_negative(cls, value):
+        if value < 0:
+            raise ValueError(
+                "The 'pago_extracto' field must be a non-negative value.")
+        return value
+
+    @field_validator("deuda_total_anterior")
+    def validate_deuda_total_anterior_non_negative(cls, value):
+        if value < 0:
+            raise ValueError(
+                "The 'deuda_total_anterior' field must be a non-negative value.")
+        return value

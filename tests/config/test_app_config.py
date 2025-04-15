@@ -43,6 +43,8 @@ def test_ruta_archivo_cartera(app_config):
 
 from unittest.mock import patch
 
+from unittest.mock import patch
+
 def test_initialize_firebase(monkeypatch):
     monkeypatch.setenv("FIREBASE_CREDENTIALS_PATH", "test_credentials.json")
     os.environ["FIREBASE_CREDENTIALS_PATH"] = "test_credentials.json"
@@ -62,31 +64,8 @@ def test_initialize_firebase(monkeypatch):
             assert options == {'databaseURL': "https://emes-digital-cartera.firebaseio.com"}
             MockFirebaseAdmin._apps.append("mock_app")
 
-    with patch("firebase_admin.credentials", MockCredentials):
-        with patch("firebase_admin", MockFirebaseAdmin):
+    with patch("firebase_admin.credentials.Certificate", MockCredentials.Certificate):
+        with patch("firebase_admin.initialize_app", MockFirebaseAdmin.initialize_app):
             from config.app_config import AppConfig
             AppConfig.initialize_firebase()
             assert len(MockFirebaseAdmin._apps) == 1
-    monkeypatch.setenv("FIREBASE_CREDENTIALS_PATH", "test_credentials.json")
-    os.environ["FIREBASE_CREDENTIALS_PATH"] = "test_credentials.json"
-
-    class MockCredentials:
-        @staticmethod
-        def Certificate(path):
-            assert path == "test_credentials.json"
-            return "mock_cred"
-
-    class MockFirebaseAdmin:
-        _apps = []
-
-        @staticmethod
-        def initialize_app(cred, options):
-            assert cred == "mock_cred"
-            assert options == {'databaseURL': "https://emes-digital-cartera.firebaseio.com"}
-            MockFirebaseAdmin._apps.append("mock_app")
-
-    monkeypatch.setattr("firebase_admin.credentials", MockCredentials)
-    monkeypatch.setattr("firebase_admin", MockFirebaseAdmin)
-
-    AppConfig.initialize_firebase()
-    assert len(MockFirebaseAdmin._apps) == 1

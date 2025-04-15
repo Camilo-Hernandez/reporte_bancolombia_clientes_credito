@@ -43,6 +43,9 @@ class EmparejadorPagosACreditoCasoUso:
         Extrae los pagos, obtiene los pedidos de crédito y aplica los pagos a los pedidos.
         Genera un reporte con los resultados.
         """
+        tipo_cuenta = tipo_cuenta.lower()
+        if tipo_cuenta not in ["ahorros", "corriente"]:
+            raise ValueError("Tipo de cuenta no válido. Debe ser 'ahorros' o 'corriente'.")
 
         # 1. Obtener pagos y pedidos
         pagos: List[Pago] = self.extractor_pagos.obtener_pagos(fecha_pago, tipo_cuenta)

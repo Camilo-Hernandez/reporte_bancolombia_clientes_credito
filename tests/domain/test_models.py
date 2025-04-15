@@ -39,7 +39,7 @@ def test_pedido_model():
         nit_cliente="900123456",
         valor_neto=Decimal("5000.00"),
         fecha_pedido=date.today(),
-        forma_pago_raw="A 30 días",
+        plazo_dias_credito=30,
         razon_social="Empresa S.A."
     )
     assert pedido.id_pedido == "001"
@@ -47,7 +47,6 @@ def test_pedido_model():
     assert pedido.nit_cliente == "900123456"
     assert pedido.valor_neto == Decimal("5000.00")
     assert pedido.fecha_pedido == date.today()
-    assert pedido.forma_pago_raw == "A 30 días"
     assert pedido.razon_social == "Empresa S.A."
     assert pedido.plazo_dias_credito == 30
     assert pedido.tipo_cliente == TipoCliente.CREDITO
@@ -208,7 +207,7 @@ def test_pedido_model_invalid_data_complement():
             nit_cliente="900123456",
             valor_neto=Decimal("5000.00"),
             fecha_pedido=date.today(),
-            forma_pago_raw="A 30 días"
+            plazo_dias_credito=30
         )
 
     with pytest.raises(ValueError):
@@ -218,7 +217,7 @@ def test_pedido_model_invalid_data_complement():
             nit_cliente="",  # Empty string, should not be allowed
             valor_neto=Decimal("5000.00"),
             fecha_pedido=date.today(),
-            forma_pago_raw="A 30 días"
+            plazo_dias_credito=30
         )
 
     with pytest.raises(ValueError):
@@ -228,7 +227,7 @@ def test_pedido_model_invalid_data_complement():
             nit_cliente="900123456",
             valor_neto=Decimal("-5000.00"),  # Negative value, should not be allowed
             fecha_pedido=date.today(),
-            forma_pago_raw="A 30 días"
+            plazo_dias_credito=30
         )
 
     with pytest.raises(ValueError):
@@ -238,7 +237,7 @@ def test_pedido_model_invalid_data_complement():
             nit_cliente="900123456",
             valor_neto=Decimal("5000.00"),
             fecha_pedido=None,  # None value, should not be allowed
-            forma_pago_raw="A 30 días"
+            plazo_dias_credito=30
         )
 
     with pytest.raises(ValueError):
@@ -248,7 +247,7 @@ def test_pedido_model_invalid_data_complement():
             nit_cliente="900123456",
             valor_neto=Decimal("5000.00"),
             fecha_pedido=date.today(),
-            forma_pago_raw=""  # Empty string, should not be allowed
+            plazo_dias_credito=None     # None int, should not be allowed
         )
 
 

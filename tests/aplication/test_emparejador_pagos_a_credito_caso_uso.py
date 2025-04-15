@@ -99,7 +99,7 @@ def test_generar_reporte_credito_ejecucion_correcta(pagos_ejemplo, pedidos_ejemp
         )
     )
 
-    caso_uso.ejecutar(fecha_pago=date(2025, 3, 30), tipo_cuenta="CREDITO")
+    caso_uso.ejecutar(fecha_pago=date(2025, 3, 30), tipo_cuenta="corriente")
 
     generador_mock.generar.assert_called_once()
     resultado: ResultadoPagoCliente = generador_mock.generar.call_args[0][0]
@@ -211,7 +211,7 @@ def test_integracion_emparejador_pagos_a_credito(container):
     )
 
     # Act
-    caso_uso.ejecutar(fecha_pago=date(2025, 3, 30), tipo_cuenta="CREDITO")
+    caso_uso.ejecutar(fecha_pago=date(2025, 3, 30), tipo_cuenta="corriente")
 
     # Assert
     generador_mock.generar.assert_called_once()

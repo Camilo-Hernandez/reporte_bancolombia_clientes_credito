@@ -71,13 +71,13 @@ class AplicadorDePagos:
 
         # 5. Construir el resultado
         return AplicadorDePagos._construir_resultado(
-            cliente,
-            pago,
-            facturas_pagadas,
-            facturas_parciales,
-            facturas_pendientes,
-            deuda_total,
-            deuda_restante,
+            cliente=cliente,
+            pago=pago,
+            facturas_pagadas=facturas_pagadas,
+            facturas_parciales=facturas_parciales,
+            facturas_pendientes=facturas_pendientes,
+            deuda_total_anterior=deuda_total,
+            deuda_restante=deuda_restante,
         )
 
     @staticmethod
@@ -160,29 +160,25 @@ class AplicadorDePagos:
                     )
                 continue
 
-            pedido.actualizar_estado_vencimiento_para_pago(
-                fecha_pago=fecha_pago)
             saldo_pendiente_pedido = pedido.valor_neto - pedido.valor_cobrado
 
             # Caso 1: Saldo cubre el 100% del pedido
             # Caso 2: Saldo cubre el pedido por debajo de la tolerancia máxima permitida
             if (
-                saldo_restante >= saldo_pendiente_pedido
-                or saldo_restante >= saldo_pendiente_pedido - config.tolerancia_maxima
+                saldo_restante >= saldo_pendiente_pedido or
+                saldo_restante >= saldo_pendiente_pedido - config.tolerancia_maxima
             ):
                 pedido.valor_cobrado = pedido.valor_neto  # Marcar como pagado
                 pedido.estado_pago = EstadoPago.PAGADO  # Actualizar estado de pago
                 saldo_restante -= saldo_pendiente_pedido  # Reducir saldo restante
-                pedido.fecha_pago_completado = (
-                    fecha_pago  # Registrar fecha de pago completo
-                )
+                pedido.fecha_pago_completado = fecha_pago
                 facturas_pagadas.append(pedido)  # Registrar factura pagada
 
                 # Agregar a la lista de pagos sólo si fue una transición de parcial a completo
                 if saldo_pendiente_pedido > 0:
                     pedido.fechas_abono.append(fecha_pago)
 
-            # Caso 2: Saldo solo cubre parcialmente el pedido
+            # Caso 3: Saldo solo cubre parcialmente el pedido
             else:
                 pedido.valor_cobrado += saldo_restante  # Acumular abono
                 pedido.estado_pago = EstadoPago.PARCIAL  # Actualizar estado de pago
@@ -208,8 +204,11 @@ class AplicadorDePagos:
         Calcula la deuda total y la deuda restante después de aplicar el pago.
         Maneja correctamente créditos (valores negativos).
         """
-        deuda_total = sum(p.valor_neto for p in pedidos)
+        deuda_total = Decimal(sum(p.valor_neto for p in pedidos))
+        # Si el saldo restante es negativo, significa que se ha pagado de más
         deuda_restante = deuda_total - (monto_pago - saldo_restante)
+        assert isinstance(deuda_total, Decimal)
+        assert isinstance(deuda_restante, Decimal)
         return deuda_total, deuda_restante
 
     @staticmethod
@@ -219,7 +218,7 @@ class AplicadorDePagos:
         facturas_pagadas: List[Pedido],
         facturas_parciales: List[Pedido],
         facturas_pendientes: List[Pedido],
-        deuda_total: Decimal,
+        deuda_total_anterior: Decimal,
         deuda_restante: Decimal,
     ) -> ResultadoPagoCliente:
         """
@@ -233,7 +232,7 @@ class AplicadorDePagos:
             facturas_pagadas=facturas_pagadas,
             facturas_parciales=facturas_parciales,
             facturas_pendientes=facturas_pendientes,
-            tipo_cliente=cliente.tipo_cliente.value,
-            deuda_total_anterior=deuda_total,
+            tipo_cliente=cliente.tipo_cliente,
+            deuda_total_anterior=deuda_total_anterior,
             deuda_restante=deuda_restante,
         )
