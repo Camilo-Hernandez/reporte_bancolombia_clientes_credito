@@ -12,8 +12,17 @@ def manejar_excepciones(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
+
+        except AttributeError as e:
+            logging.error(
+                f"AttributeError - Error ejecutando {func.__qualname__} \n >>> {e}", exc_info=True
+            )
+            import traceback
+            traceback.print_exc()
+
         except Exception as e:
-            logging.error(f"Error ejecutando {func.__name__} >>> {e}", exc_info=True)
+            logging.error(
+                f"Error ejecutando {func.__name__} >>> {e}", exc_info=True)
 
     return wrapper
 
@@ -46,14 +55,12 @@ class GeneradorReporteTxt(AbstractGeneradorReporte):
     @manejar_excepciones
     def generar(self, resultado: ResultadoPagoCliente, tipo_cuenta: str) -> None:
         # Crea el directorio de salida si no existe
-        directorio_final = os.path.join(
+        directorio_final: str = os.path.join(
             self._directorio_reportes, tipo_cuenta, self._fecha_pdf
         )
-        os.makedirs(directorio_final, exist_ok=True)
-        # Genera el nombre del archivo y lo crea
-        for i, pedido in enumerate(
-            resultado.facturas_pagadas + [resultado.factura_parcial], start=1
-        ):
+        self._crear_directorio(directorio_final)
+
+        for i, pedido in enumerate(resultado.facturas_pagadas + resultado.facturas_parciales, start=1):
             # Crea el nombre del archivo
             # El nombre del archivo es el NIT del cliente seguido de un número secuencial
             # (1, 2, 3, ...) que representa el pedido i de la lista de pedidos pagados
@@ -79,3 +86,24 @@ class GeneradorReporteTxt(AbstractGeneradorReporte):
                     )
                     line = ",".join(row)
                     file.write(line + "\n")
+
+    def _limpiar_directorio(self, directorio: str) -> None:
+        """
+        Elimina todos los archivos existentes en el directorio especificado.
+        Si el directorio no existe, lo crea.
+        """
+        if os.path.exists(directorio):
+            for archivo in os.listdir(directorio):
+                ruta_archivo = os.path.join(directorio, archivo)
+                if os.path.isfile(ruta_archivo):
+                    os.remove(ruta_archivo)
+        else:
+            os.makedirs(directorio, exist_ok=True)
+
+    # Crea una función para crear directorio
+    def _crear_directorio(self, directorio: str) -> None:
+        """
+        Crea un directorio si no existe.
+        """
+        if not os.path.exists(directorio):
+            os.makedirs(directorio, exist_ok=True)

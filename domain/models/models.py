@@ -1,4 +1,5 @@
 # domain/models/models.py
+
 from datetime import date, timedelta
 import datetime
 from decimal import Decimal
@@ -7,6 +8,9 @@ from typing import Optional, List
 import uuid
 from pydantic import BaseModel, ConfigDict, Field, field_validator, validator
 from enum import Enum
+
+from config.app_config import config
+
 
 class TipoCuentaBancaria(str, Enum):
     """
@@ -47,6 +51,14 @@ class EstadoPago(str, Enum):
 class EstadoPedido(int, Enum):
     """
     Enum para el estado del pedido en el sistema externo.
+    
+    Valor de los estados:
+    - 0: Facturado
+    - 1: Empacado
+    - 2: Despachado
+    - 3: Pendiente
+    - 4: Tesorería
+    - 5: Crédito Población
     """
 
     FACTURADO = 0
@@ -68,15 +80,29 @@ class Cliente(BaseModel):
     """
 
     id_cliente: str = Field(
-        ..., description="ID del cliente obtenido del sistema externo"
+        ...,
+        description="ID del cliente obtenido del sistema externo",
+        strict=True,
     )
-    nit_cliente: str = Field(..., description="NIT o Cédula del cliente")
-    razon_social: str = Field(..., description="Nombre o Razón Social del cliente")
+    nit_cliente: str = Field(
+        ...,
+        description="NIT o Cédula del cliente",
+        strict=True
+        )
+    razon_social: str = Field(
+        ...,
+        description="Nombre o Razón Social del cliente",
+        strict=True
+        )
     tipo_cliente: TipoCliente = Field(
-        ..., description="Tipo de cliente (Contado/Credito)"
+        ...,
+        description="Tipo de cliente (Contado/Credito)",
+        strict=True,
     )
     plazo_dias_credito: Optional[int] = Field(
-        None, description="Días de plazo si es a crédito"
+        None,
+        description="Días de plazo si es a crédito",
+        strict=True,
     )
 
 
@@ -97,19 +123,25 @@ class Pago(BaseModel):
             uuid.uuid5(uuid.NAMESPACE_DNS, f"{date.today()}-{uuid.uuid4()}")
         )
     )
-    nit_cliente: str = Field(..., description="NIT del cliente que realiza el pago")
-    cuenta_ingreso_banco: str = Field(
-        ..., description="Cuenta contable de ingreso asociada al pago"
+    nit_cliente: str = Field(
+        ...,
+        description="NIT del cliente que realiza el pago",
+        strict=True,  # Ensure it's a string
     )
-    cuenta_egreso_banco: str = Field(
-        ..., description="Cuenta contable de egreso asociada al pago"
+    monto: Decimal = Field(
+        ...,
+        description="Monto total del pago recibido",
+        strict=True,  # Ensure it's a Decimal
     )
-    monto: Decimal = Field(..., description="Monto total del pago recibido")
     fecha_pago: date = Field(
-        ..., description="Fecha en que se registró el pago (del extracto)"
+        ...,
+        description="Fecha en que se registró el pago (del extracto)",
+        strict=True,
     )
     referencia_bancaria: Optional[str] = Field(
-        None, description="Referencia o descripción del pago en el extracto"
+        None,
+        description="Referencia o descripción del pago en el extracto",
+        strict=True,
     )
 
 
@@ -128,48 +160,63 @@ class Pedido(BaseModel):
     id_pedido: str = Field(
         ...,
         description="ID único del pedido/factura obtenido del sistema externo",
-        strict = True, # Ensure it's a string
-        min_length = 1,  # Ensure it's not empty
+        strict=True,  # Ensure it's a string
+        min_length=1,  # Ensure it's not empty
     )
     estado_pedido: EstadoPedido = Field(
         ...,
+        strict=True, 
         description="Estado del pedido en el sistema externo (ej. 0, 1, 2, 3, 4, 5)",
     )
     nit_cliente: str = Field(
         ...,
+        strict=True,
         description="NIT del cliente asociado al pedido obtenido del sistema externo",
     )
     valor_neto: Decimal = Field(
-        ..., description="Valor total del pedido/factura obtenido del sistema externo"
+        ...,
+        strict=True,
+        description="Valor total del pedido/factura obtenido del sistema externo"
     )
     fecha_pedido: date = Field(
         ...,
+        strict=True,
         description="Fecha de creación/facturación del pedido obtenido del sistema externo",
     )
     forma_pago_raw: str = Field(
-        ..., description="Texto original de la forma de pago"
+        ..., 
+        strict=True,
+        description="Texto original de la forma de pago"
     )  # Guardamos el original por si acaso}
     razon_social: Optional[str] = Field(
-        None, description="Razón social del cliente asociado al pedido"
+        None,
+        strict=True,
+        description="Razón social del cliente asociado al pedido"
     )
     # --- Campos de Estado (gestionados por el servicio de dominio) ---
     estado_pago: EstadoPago = Field(
-        EstadoPago.PENDIENTE, description="Estado actual del pago del pedido."
+        EstadoPago.PENDIENTE,
+        strict=True,
+        description="Estado actual del pago del pedido."
     )
     valor_cobrado: Decimal = Field(
         Decimal("0.0"),
+        strict=True,
         description="Valor ya abonado a este pedido. Se calcula en el servicio.",
+    )
+    fechas_abono: List[date] = Field(
+        [],  
+        strict=True,
+        description="Lista de fechas de abono del pedido",
     )
     fecha_pago_completado: Optional[date] = Field(
         None,
+        strict=True,
         description="Fecha en que se registró el pago que supera el porcentaje mínimo para considerar el pedido como pagado, dado en config/setting.py",
     )
-    fechas_abono: List[date] = Field(
-        [],
-        description="Lista de fechas de abono del pedido",
-    )
     factura_vencida: bool = Field(
-        default=True,
+        default=False,
+        strict=True,
         description="Indica si la factura está vencida (calculada al momento de la consulta)",
     )
 
@@ -210,23 +257,16 @@ class Pedido(BaseModel):
         Fecha de vencimiento del pedido.
         """
         return self.fecha_pedido + timedelta(
-            days=self.plazo_dias_credito + 10
-        )  # 10 días de gracia
-
-    def actualizar_estado_vencimiento(self, fecha_referencia: date = date.today()):
-        """Actualiza el estado de vencimiento según la fecha de referencia."""
-        self.factura_vencida = (
-            self.fecha_pago_completado is None
-            or self.fecha_vencimiento < fecha_referencia
+            days=self.plazo_dias_credito + config.dias_gracia_vencimiento
         )
 
-    # @property
-    # def saldo_pendiente(self) -> Decimal:
-    #     """
-    #     Calcula el saldo pendiente del pedido.
-    #     """
-    #     return self.valor_neto - self.valor_cobrado
+    def actualizar_estado_vencimiento_para_pago(self, fecha_pago: date) -> None:
+        """Actualiza el estado de vencimiento según la fecha de referencia cada vez que se llama."""
+        self.factura_vencida = (
+            self.fecha_pago_completado is None or self.fecha_vencimiento <= fecha_pago
+        )
 
+    # Para modificar los atributos del modelo después de su creación.
     model_config = ConfigDict(frozen=False)
 
 
@@ -237,39 +277,56 @@ class ResultadoPagoCliente(BaseModel):
         - fecha_pago: date = Fecha en que se registró el pago (del extracto)
         - pago_extracto: Decimal = Monto total del pago recibido del extracto
         - deuda_restante: Decimal = Deuda restante después de aplicar el pago
-        - facturas_pagadas: List[str] = IDs de las facturas que fueron pagadas con este pago
-        - factura_parcial: Optional[str] = ID de la factura que fue parcialmente pagada
-        - facturas_pendientes: List[str] = IDs de las facturas que siguen pendientes después del pago
+        - facturas_pagadas: List[Pedido] = Facturas que fueron pagadas con este pago
+        - facturas_parciales: List[Pedido] = Facturas que están o fueron parcialmente pagadas
+        - facturas_pendientes: List[Pedido] = Facturas que siguen pendientes después del pago
         - id_pago: str = ID del pago generado en el sistema
     """
 
     id_pago: str = Field(
         ...,
         description="ID único del pago (UUID generado a partir de la fecha y un UUID aleatorio)",
+        strict=True,
     )
     nit_cliente: str = Field(..., description="NIT del cliente")
     fecha_pago: date = Field(
-        ..., description="Fecha en que se registró el pago (del extracto)"
+        ...,
+        description="Fecha en que se registró el pago (del extracto)",
+        strict=True,
     )
     pago_extracto: Decimal = Field(
-        ..., description="Monto total del pago recibido del extracto"
+        ...,
+        description="Monto total del pago recibido del extracto",
+        strict=True,
     )
     facturas_pagadas: List[Pedido] = Field(
-        ..., description="IDs de las facturas que fueron pagadas con este pago"
+        ..., 
+        description="IDs de las facturas que fueron pagadas con este pago",
+        strict=True,
     )
-    factura_parcial: Optional[Pedido] = Field(
-        None, description="ID de la factura que fue parcialmente pagada"
+    facturas_parciales: List[Pedido] = Field(
+        None, 
+        description="ID de la factura que fue parcialmente pagada",
+        strict=True,
     )
     facturas_pendientes: List[Pedido] = Field(
-        ..., description="IDs de las facturas que siguen pendientes después del pago"
+        ..., 
+        description="IDs de las facturas que siguen pendientes después del pago",
+        strict=True,
     )
     tipo_cliente: TipoCliente = Field(
-        ..., description="Tipo de cliente (Contado/Credito)"
+        ..., 
+        description="Tipo de cliente (Contado/Credito)",
+        strict=True,
     )
     # --- Resumen de Estado Post-Pago --- #
     deuda_total_anterior: Decimal = Field(
-        ..., description="Deuda total antes de aplicar el pago"
+        ..., 
+        description="Deuda total antes de aplicar el pago",
+        strict=True,
     )
     deuda_restante: Decimal = Field(
-        ..., description="Deuda restante después de aplicar el pago"
+        ..., 
+        description="Deuda restante después de aplicar el pago",
+        strict=True,
     )

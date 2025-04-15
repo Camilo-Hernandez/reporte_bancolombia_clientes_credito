@@ -1,3 +1,5 @@
+# tests\domain\test_aplicador_de_pagos.py
+
 import pytest
 from datetime import date, timedelta
 from decimal import Decimal
@@ -67,6 +69,7 @@ def crear_pedido(
 
 
 class TestAplicadorDePagos:
+
     # 1. Complete payment for a single order
     def test_pago_completo_un_pedido(self, cliente_credito, pago_base):
         pedido = crear_pedido(
@@ -85,7 +88,7 @@ class TestAplicadorDePagos:
         assert pedido.valor_cobrado == Decimal("500.00")
         assert resultado.facturas_pagadas[0].id_pedido == "ped-001"
         assert resultado.facturas_pagadas == [pedido]
-        assert resultado.factura_parcial is None
+        assert resultado.facturas_parciales == []
         assert resultado.facturas_pendientes == []
         assert resultado.deuda_restante == Decimal("0.00")
 
@@ -106,7 +109,7 @@ class TestAplicadorDePagos:
         assert pedido.estado_pago == EstadoPago.PARCIAL
         assert pedido.valor_cobrado == Decimal("300.00")
         assert resultado.facturas_pagadas == []
-        assert resultado.factura_parcial == pedido
+        assert resultado.facturas_parciales == [pedido]
         assert resultado.facturas_pendientes == []
         assert resultado.deuda_restante == Decimal("700.00")
 
@@ -140,7 +143,7 @@ class TestAplicadorDePagos:
 
         assert all(p.estado_pago == EstadoPago.PAGADO for p in pedidos)
         assert resultado.facturas_pagadas == pedidos
-        assert resultado.factura_parcial is None
+        assert resultado.facturas_parciales == []
         assert resultado.facturas_pendientes == []
         assert resultado.deuda_restante == Decimal("0.00")
 
@@ -150,23 +153,23 @@ class TestAplicadorDePagos:
             crear_pedido(
                 "ped-001",
                 cliente_credito.nit_cliente,
-                "500.00",
+                "5000000.00",
                 date.today() - timedelta(days=15),
             ),
             crear_pedido(
                 "ped-002",
                 cliente_credito.nit_cliente,
-                "300.00",
+                "3000000.00",
                 date.today() - timedelta(days=10),
             ),
             crear_pedido(
                 "ped-003",
                 cliente_credito.nit_cliente,
-                "200.00",
+                "2000000.00",
                 date.today() - timedelta(days=5),
             ),
         ]
-        pago_base.monto = Decimal("600.00")
+        pago_base.monto = Decimal("6000000.00")
 
         resultado = AplicadorDePagos.aplicar_pago_a_pedidos_cliente(
             pedidos, cliente_credito, pago_base
@@ -176,9 +179,9 @@ class TestAplicadorDePagos:
         assert pedidos[1].estado_pago == EstadoPago.PARCIAL
         assert pedidos[2].estado_pago == EstadoPago.PENDIENTE
         assert resultado.facturas_pagadas == pedidos[:1]
-        assert resultado.factura_parcial == pedidos[1]
+        assert resultado.facturas_parciales == [pedidos[1]]
         assert resultado.facturas_pendientes == [pedidos[2]]
-        assert resultado.deuda_restante == Decimal("400.00")
+        assert resultado.deuda_restante == Decimal("4000000.00")
 
     # 5. Priority for overdue orders
     def test_prioridad_pedidos_vencidos(self, cliente_credito, pago_base):
@@ -186,27 +189,27 @@ class TestAplicadorDePagos:
             crear_pedido(
                 "ped-001",
                 cliente_credito.nit_cliente,
-                "200.00",
+                "20000.00",
                 date.today() - timedelta(days=60),  # Vencido
             ),
             crear_pedido(
                 "ped-002",
                 cliente_credito.nit_cliente,
-                "500.00",
+                "50000.00",
                 date.today() - timedelta(days=5),  # No vencido
             ),
             crear_pedido(
                 "ped-003",
                 cliente_credito.nit_cliente,
-                "300.00",
+                "30000.00",
                 date.today() - timedelta(days=45),  # Vencido
             ),
         ]
         # Marcar pedidos como vencidos
         for p in pedidos:
-            p.actualizar_estado_vencimiento()
+            p.actualizar_estado_vencimiento_para_pago(pago_base.fecha_pago)
 
-        pago_base.monto = Decimal("400.00")
+        pago_base.monto = Decimal("40000.00")
 
         resultado = AplicadorDePagos.aplicar_pago_a_pedidos_cliente(
             pedidos, cliente_credito, pago_base
@@ -214,10 +217,11 @@ class TestAplicadorDePagos:
 
         # Debería pagar primero los vencidos (ped-001 y ped-003) aunque ped-002 es más reciente
         assert pedidos[0].estado_pago == EstadoPago.PAGADO  # ped-001
-        assert pedidos[2].estado_pago == EstadoPago.PARCIAL  # ped-003 (parcial)
+        # ped-003 (parcial)
+        assert pedidos[2].estado_pago == EstadoPago.PARCIAL
         assert pedidos[1].estado_pago == EstadoPago.PENDIENTE  # ped-002
         assert resultado.facturas_pagadas == [pedidos[0]]
-        assert resultado.factura_parcial == pedidos[2]
+        assert resultado.facturas_parciales == [pedidos[2]]
         assert resultado.facturas_pendientes == [pedidos[1]]
 
     # 6. Payment exceeding total debt
@@ -244,7 +248,7 @@ class TestAplicadorDePagos:
 
         assert all(p.estado_pago == EstadoPago.PAGADO for p in pedidos)
         assert resultado.facturas_pagadas == pedidos
-        assert resultado.factura_parcial is None
+        assert resultado.facturas_parciales == []
         assert resultado.facturas_pendientes == []
         assert resultado.deuda_restante == Decimal("0.00")
         # El saldo restante debería ser 100 (600 - 500)
@@ -276,10 +280,11 @@ class TestAplicadorDePagos:
             pedidos, cliente_credito, pago_base
         )
 
-        assert pedidos[0].estado_pago == EstadoPago.PAGADO  # No debería cambiar
+        # No debería cambiar
+        assert pedidos[0].estado_pago == EstadoPago.PAGADO
         assert pedidos[1].estado_pago == EstadoPago.PAGADO  # Nuevo pago
         assert resultado.facturas_pagadas == pedidos[1:]
-        assert resultado.factura_parcial is None
+        assert resultado.facturas_parciales == []
         assert resultado.deuda_restante == Decimal("0.00")
 
     # 8. Order sorting by date and amount
@@ -313,10 +318,11 @@ class TestAplicadorDePagos:
         # Debería procesar primero ped-002 (más antiguo), luego ped-001 (mismo día que ped-003 pero menor monto)
         assert resultado.facturas_pagadas == [pedidos[1], pedidos[0]]
         assert pedidos[0].estado_pago == EstadoPago.PAGADO  # ped-001
-        assert resultado.factura_parcial == None
+        assert resultado.facturas_parciales == []
         assert pedidos[0].valor_cobrado == Decimal("300.00")  # ped-001
         assert pedidos[1].valor_cobrado == Decimal("200.00")  # ped-002
-        assert pedidos[2].valor_cobrado == Decimal("0.00")  # ped-003 (pendiente)
+        assert pedidos[2].valor_cobrado == Decimal(
+            "0.00")  # ped-003 (pendiente)
 
     # 9. Validation of incorrect inputs
     def test_validacion_entradas_incorrectas(self, cliente_credito, pago_base):
@@ -354,17 +360,17 @@ class TestAplicadorDePagos:
             crear_pedido(
                 "ped-001",
                 cliente_credito.nit_cliente,
-                "500.00",
+                "5000000.00",
                 date.today() - timedelta(days=10),
             ),
             crear_pedido(
                 "ped-002",
                 cliente_credito.nit_cliente,
-                "300.00",
+                "3000000.00",
                 date.today() - timedelta(days=5),
             ),
         ]
-        pago_base.monto = Decimal("600.00")
+        pago_base.monto = Decimal("6000000.00")
 
         resultado = AplicadorDePagos.aplicar_pago_a_pedidos_cliente(
             pedidos, cliente_credito, pago_base
@@ -375,10 +381,10 @@ class TestAplicadorDePagos:
         assert resultado.fecha_pago == pago_base.fecha_pago
         assert resultado.pago_extracto == pago_base.monto
         assert resultado.facturas_pagadas == [pedidos[0]]
-        assert resultado.factura_parcial == pedidos[1]
+        assert resultado.facturas_parciales == [pedidos[1]]
         assert resultado.facturas_pendientes == []
-        assert resultado.deuda_total_anterior == Decimal("800.00")
-        assert resultado.deuda_restante == Decimal("200.00")
+        assert resultado.deuda_total_anterior == Decimal("8000000.00")
+        assert resultado.deuda_restante == Decimal("2000000.00")
         assert resultado.tipo_cliente == cliente_credito.tipo_cliente
 
     # 11. Cliente con pedidos pero no coinciden por NIT
@@ -407,13 +413,15 @@ class TestAplicadorDePagos:
 
         # No debería aplicar el pago a ningún pedido
         assert resultado.facturas_pagadas == []
-        assert resultado.factura_parcial is None
+        assert resultado.facturas_parciales == []
         assert resultado.facturas_pendientes == []
         assert resultado.deuda_restante == Decimal("0.00")
 
+    # 12. Cliente con pedidos pero no tiene un pago de 0
     def test_pago_monto_cero(self, cliente_credito, pago_base):
         pedidos = [
-            crear_pedido("ped-001", cliente_credito.nit_cliente, "500.00", date.today())
+            crear_pedido("ped-001", cliente_credito.nit_cliente,
+                         "500.00", date.today())
         ]
         pago_base.monto = Decimal("0.00")
 
@@ -424,6 +432,7 @@ class TestAplicadorDePagos:
                 pedidos, cliente_credito, pago_base
             )
 
+    # 13. Cliente paga exactamente el monto de un pedido
     def test_pago_monto_exacto(self, cliente_credito, pago_base):
         pedido = crear_pedido(
             "ped-001", cliente_credito.nit_cliente, "327.50", date.today()
@@ -437,9 +446,10 @@ class TestAplicadorDePagos:
         assert pedido.estado_pago == EstadoPago.PAGADO
         assert pedido.valor_cobrado == Decimal("327.50")
 
+    # 14. Se registran 2 pagos parciales y se completa el pedido
     def test_acumulacion_pagos_parciales(self, cliente_credito):
         pedido = crear_pedido(
-            "ped-001", cliente_credito.nit_cliente, "1000.00", date.today()
+            "ped-001", cliente_credito.nit_cliente, "1000000.00", date.today()
         )
 
         # First partial payment (600)
@@ -447,7 +457,7 @@ class TestAplicadorDePagos:
             nit_cliente=cliente_credito.nit_cliente,
             cuenta_ingreso_banco="ING001",
             cuenta_egreso_banco="EGR001",
-            monto=Decimal("600.00"),
+            monto=Decimal("600000.00"),
             fecha_pago=date.today(),
         )
         resultado1 = AplicadorDePagos.aplicar_pago_a_pedidos_cliente(
@@ -456,7 +466,7 @@ class TestAplicadorDePagos:
 
         # Verify first payment state
         assert pedido.estado_pago == EstadoPago.PARCIAL
-        assert pedido.valor_cobrado == Decimal("600.00")
+        assert pedido.valor_cobrado == Decimal("600000.00")
         assert pedido.fechas_abono == [date.today()]
         assert pedido.fecha_pago_completado is None
 
@@ -465,7 +475,7 @@ class TestAplicadorDePagos:
             nit_cliente=cliente_credito.nit_cliente,
             cuenta_ingreso_banco="ING001",
             cuenta_egreso_banco="EGR001",
-            monto=Decimal("400.00"),
+            monto=Decimal("400000.00"),
             fecha_pago=date.today(),
         )
         resultado2 = AplicadorDePagos.aplicar_pago_a_pedidos_cliente(
@@ -474,14 +484,16 @@ class TestAplicadorDePagos:
 
         # Verify final state
         assert pedido.estado_pago == EstadoPago.PAGADO
-        assert pedido.valor_cobrado == Decimal("1000.00")
+        assert pedido.valor_cobrado == Decimal("1000000.00")
         assert len(pedido.fechas_abono) == 2
         assert pedido.fechas_abono == [date.today(), date.today()]
         assert pedido.fecha_pago_completado == date.today()
 
+    # 15. Pago con monto negativo lanza error
     def test_pago_monto_negativo(self, cliente_credito, pago_base):
         pedidos = [
-            crear_pedido("ped-001", cliente_credito.nit_cliente, "500.00", date.today())
+            crear_pedido("ped-001", cliente_credito.nit_cliente,
+                         "500.00", date.today())
         ]
         pago_base.monto = Decimal("-100.00")
 
@@ -492,6 +504,7 @@ class TestAplicadorDePagos:
                 pedidos, cliente_credito, pago_base
             )
 
+    # 16. Pago registrado con un NIT diferente al cliente no afecta el estado del pedido del cliente
     def test_pago_nit_cliente_diferente(self, cliente_credito):
         otro_cliente = Cliente(
             id_cliente="cli-999",
@@ -500,7 +513,8 @@ class TestAplicadorDePagos:
             tipo_cliente=TipoCliente.CREDITO,
         )
         pedidos = [
-            crear_pedido("ped-001", otro_cliente.nit_cliente, "500.00", date.today())
+            crear_pedido("ped-001", otro_cliente.nit_cliente,
+                         "500.00", date.today())
         ]
         pago = Pago(
             nit_cliente=cliente_credito.nit_cliente,  # Different NIT
@@ -517,6 +531,7 @@ class TestAplicadorDePagos:
         assert resultado.facturas_pagadas == []
         assert resultado.deuda_restante == Decimal("0.00")
 
+    # 17. Pago con decimales extendidos
     def test_pago_con_decimales_extendidos(self, cliente_credito):
         pedido = crear_pedido(
             "ped-001", cliente_credito.nit_cliente, "123.456789", date.today()
@@ -535,6 +550,7 @@ class TestAplicadorDePagos:
 
         assert pedido.valor_cobrado == Decimal("123.456789")
 
+    # 18. Pago a pedido parcialmente pagado
     def test_pago_a_pedido_parcialmente_pagado(self, cliente_credito):
         pedido = crear_pedido(
             "ped-001",
@@ -580,16 +596,74 @@ class TestAplicadorDePagos:
         assert pedido.estado_pago == EstadoPago.PENDIENTE  # Should not change to PAGADO
         assert pedido.valor_cobrado == Decimal("0.00")  # No payment applied
 
-    def test_pago_minimo_para_considerar_pagado(self, cliente_credito):
-        pedido = crear_pedido(
-            "ped-001", cliente_credito.nit_cliente, "1000.00", date.today()
+    # 19. Factura aún está no vencida la fecha de vencimiento, y vencida después de la fecha de vencimiento
+    def test_factura_no_vencida_fecha_vencimiento(self, cliente_credito):
+
+        # Pedido 1 no vencido (dentro de los 30 días de crédito + 10 días de gracia)
+        # A punto de vencerse
+        pedido1 = crear_pedido(
+            "ped-001",
+            cliente_credito.nit_cliente,
+            "1000000.00",
+            date.today()
+            # Cliente con 30 días de crédito + 10 días de gracia
+            - timedelta(days=40),
         )
-        # Asumiendo config.porcentaje_minimo_pedido_pagado = 0.9 (90%)
+
+        # Pedido 2 vencido por 1 día
+        pedido2 = crear_pedido(
+            "ped-001",
+            cliente_credito.nit_cliente,
+            "1000000.00",
+            date.today() - timedelta(days=41),
+        )
+
         pago = Pago(
             nit_cliente=cliente_credito.nit_cliente,
             cuenta_ingreso_banco="ING001",
             cuenta_egreso_banco="EGR001",
-            monto=Decimal("900.00"),  # Exactly 90%
+            monto=Decimal("1.00"),
+            fecha_pago=date.today(),
+        )
+
+        resultado = AplicadorDePagos.aplicar_pago_a_pedidos_cliente(
+            [pedido1, pedido2], cliente_credito, pago
+        )
+
+        assert pedido1.fecha_pago_completado == None
+        assert pedido1.fecha_vencimiento == date.today()
+        assert pedido1.factura_vencida == False
+        assert pedido1.estado_pago == EstadoPago.PENDIENTE
+        assert pedido1.valor_cobrado == Decimal("0.00")
+        assert pedido1.fechas_abono == []
+
+        assert pedido2.fecha_pago_completado == None
+        assert pedido2.fecha_vencimiento == date.today() - timedelta(days=1)
+        assert pedido2.factura_vencida == True
+        assert pedido2.estado_pago == EstadoPago.PARCIAL
+        assert pedido2.valor_cobrado == Decimal("1.00")
+        assert pedido2.fechas_abono == [date.today()]
+
+    # 20. Si el pedido no está vencido y ya se cobró el 90% del pedido, se considera como no vencido
+    # aún después de que pase la fecha de vencimiento
+    def test_pago_minimo_para_considerar_no_vencido(self, cliente_credito):
+
+        # Pedido 1 no vencido (dentro de los 30 días de crédito + 10 días de gracia)
+        pedido = crear_pedido(
+            "ped-001",
+            cliente_credito.nit_cliente,
+            "1000000.00",
+            date.today() - timedelta(days=40),
+        )
+
+        assert pedido.factura_vencida == False
+        assert pedido.fecha_vencimiento == date.today()
+
+        pago = Pago(
+            nit_cliente=cliente_credito.nit_cliente,
+            cuenta_ingreso_banco="ING001",
+            cuenta_egreso_banco="EGR001",
+            monto=Decimal("900000.00"),  # Exactly 90%
             fecha_pago=date.today(),
         )
 
@@ -597,5 +671,7 @@ class TestAplicadorDePagos:
             [pedido], cliente_credito, pago
         )
 
-        assert pedido.estado_pago == EstadoPago.PARCIAL
         assert pedido.fecha_pago_completado == date.today()
+        assert pedido.estado_pago == EstadoPago.PARCIAL
+        assert pedido.valor_cobrado == Decimal("900000.00")
+        assert pedido.fechas_abono == [date.today()]

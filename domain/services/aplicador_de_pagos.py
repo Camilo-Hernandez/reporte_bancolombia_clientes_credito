@@ -16,6 +16,13 @@ from domain.models.models import (
 
 
 class AplicadorDePagos:
+    """
+    Clase para aplicar pagos a pedidos de un cliente.
+    Esta clase contiene métodos para filtrar, ordenar y aplicar pagos a los pedidos de un cliente.
+    También calcula la deuda total y restante después de aplicar el pago.
+    Los métodos son estáticos y no requieren instanciar la clase.
+    """
+
     @staticmethod
     def aplicar_pago_a_pedidos_cliente(
         pedidos: List[Pedido],
@@ -30,7 +37,8 @@ class AplicadorDePagos:
         if not pedidos:
             raise ValueError("La lista de pedidos no puede estar vacía.")
         if not cliente or not isinstance(cliente, Cliente):
-            raise ValueError("El cliente debe ser una instancia válida de Cliente.")
+            raise ValueError(
+                "El cliente debe ser una instancia válida de Cliente.")
         if not pago or not isinstance(pago, Pago):
             raise ValueError("El pago debe ser una instancia válida de Pago.")
         if pago.monto <= 0:
@@ -50,7 +58,7 @@ class AplicadorDePagos:
 
         # 3. Aplicar pagos a los pedidos
         pedidos_por_prioridad = vencidos + no_vencidos
-        saldo_restante, facturas_pagadas, factura_parcial, facturas_pendientes = (
+        saldo_restante, facturas_pagadas, facturas_parciales, facturas_pendientes = (
             AplicadorDePagos._aplicar_pagos(
                 pedidos_por_prioridad, pago.monto, pago.fecha_pago
             )
@@ -66,7 +74,7 @@ class AplicadorDePagos:
             cliente,
             pago,
             facturas_pagadas,
-            factura_parcial,
+            facturas_parciales,
             facturas_pendientes,
             deuda_total,
             deuda_restante,
@@ -82,7 +90,13 @@ class AplicadorDePagos:
         pedidos_filtrados = [
             p
             for p in pedidos
-            if p.nit_cliente == cliente.nit_cliente
+            if p.id_pedido is not None
+            and p.fecha_pedido is not None
+            and p.fecha_pedido is not ""
+            and p.fecha_pedido >= datetime.now().date() - timedelta(days=config.dias_maximo_pedido)
+            and p.valor_neto is not None
+            and p.valor_neto > 0
+            and p.nit_cliente == cliente.nit_cliente
             and p.estado_pedido
             in [EstadoPedido.DESPACHADO, EstadoPedido.CREDITO_POBLACION]
             and p.estado_pago != EstadoPago.PAGADO
@@ -98,13 +112,14 @@ class AplicadorDePagos:
         Separa los pedidos en vencidos y no vencidos.
         """
         vencidos = [pedido for pedido in pedidos if pedido.factura_vencida]
-        no_vencidos = [pedido for pedido in pedidos if not pedido.factura_vencida]
+        no_vencidos = [
+            pedido for pedido in pedidos if not pedido.factura_vencida]
         return vencidos, no_vencidos
 
     @staticmethod
     def _aplicar_pagos(
         pedidos: List[Pedido], saldo_restante: Decimal, fecha_pago: date
-    ) -> Tuple[Decimal, List[Pedido], Optional[Pedido], List[Pedido]]:
+    ) -> Tuple[Decimal, List[Pedido], List[Pedido], List[Pedido]]:
         """
         Aplica un saldo disponible a una lista de pedidos, distribuyendo el pago según prioridades.
 
@@ -124,7 +139,7 @@ class AplicadorDePagos:
 
         # Inicialización de listas para resultados
         facturas_pagadas = []  # Pedidos pagados en su totalidad
-        factura_parcial = None  # Pedido con pago parcial (si aplica)
+        facturas_parciales = []  # Pedidos con pago parcial
         facturas_pendientes = []  # Pedidos no cubiertos por el saldo
 
         for pedido in pedidos:
@@ -135,13 +150,26 @@ class AplicadorDePagos:
 
             # Si no hay saldo disponible, marcar el resto como pendientes
             if saldo_restante <= 0:
-                facturas_pendientes.append(pedido)
+                if pedido.estado_pago == EstadoPago.PARCIAL:
+                    facturas_parciales.append(pedido)
+                elif pedido.estado_pago == EstadoPago.PENDIENTE:
+                    facturas_pendientes.append(pedido)
+                elif pedido.estado_pago == EstadoPago.PAGADO:
+                    raise ValueError(
+                        f"El pedido {pedido.id_pedido} (NIT: {pedido.nit_cliente}) ya está pagado y debió filtrarse primero desde cartera."
+                    )
                 continue
 
+            pedido.actualizar_estado_vencimiento_para_pago(
+                fecha_pago=fecha_pago)
             saldo_pendiente_pedido = pedido.valor_neto - pedido.valor_cobrado
 
             # Caso 1: Saldo cubre el 100% del pedido
-            if saldo_restante >= saldo_pendiente_pedido:
+            # Caso 2: Saldo cubre el pedido por debajo de la tolerancia máxima permitida
+            if (
+                saldo_restante >= saldo_pendiente_pedido
+                or saldo_restante >= saldo_pendiente_pedido - config.tolerancia_maxima
+            ):
                 pedido.valor_cobrado = pedido.valor_neto  # Marcar como pagado
                 pedido.estado_pago = EstadoPago.PAGADO  # Actualizar estado de pago
                 saldo_restante -= saldo_pendiente_pedido  # Reducir saldo restante
@@ -156,21 +184,21 @@ class AplicadorDePagos:
 
             # Caso 2: Saldo solo cubre parcialmente el pedido
             else:
-                factura_parcial = pedido  # Registrar factura parcial
-                pedido.estado_pago = EstadoPago.PARCIAL  # Actualizar estado de pago
                 pedido.valor_cobrado += saldo_restante  # Acumular abono
+                pedido.estado_pago = EstadoPago.PARCIAL  # Actualizar estado de pago
                 saldo_restante = Decimal("0")  # Saldo se agota
-                pedido.fechas_abono.append(fecha_pago)  # Registrar abono parcial
+                facturas_parciales.append(pedido)  # Registrar factura parcial
+                # Registrar abono parcial
+                pedido.fechas_abono.append(fecha_pago)
 
                 # Verificar si el abono alcanza el mínimo requerido para considerar "no vencido"
                 if (pedido.valor_cobrado / pedido.valor_neto) >= Decimal(
                     str(config.porcentaje_minimo_pedido_pagado)
                 ):
-                    pedido.actualizar_estado_vencimiento()
                     # Considerar como "completado" si cumple el mínimo
                     pedido.fecha_pago_completado = fecha_pago
 
-        return saldo_restante, facturas_pagadas, factura_parcial, facturas_pendientes
+        return saldo_restante, facturas_pagadas, facturas_parciales, facturas_pendientes
 
     @staticmethod
     def _calcular_deuda(
@@ -189,7 +217,7 @@ class AplicadorDePagos:
         cliente: Cliente,
         pago: Pago,
         facturas_pagadas: List[Pedido],
-        factura_parcial: Optional[Pedido],
+        facturas_parciales: List[Pedido],
         facturas_pendientes: List[Pedido],
         deuda_total: Decimal,
         deuda_restante: Decimal,
@@ -203,7 +231,7 @@ class AplicadorDePagos:
             fecha_pago=pago.fecha_pago,
             pago_extracto=pago.monto,
             facturas_pagadas=facturas_pagadas,
-            factura_parcial=factura_parcial,
+            facturas_parciales=facturas_parciales,
             facturas_pendientes=facturas_pendientes,
             tipo_cliente=cliente.tipo_cliente.value,
             deuda_total_anterior=deuda_total,

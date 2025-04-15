@@ -4,9 +4,18 @@ from annotated_types import T
 from config.app_config import config as app_config
 from di.container import Container
 from domain.models.models import TipoCuentaBancaria
+from print_logger import setup_logger, PrintLogger
+import sys
 
 
 def main(fecha: str):
+
+    # Set up the logger
+    logger = setup_logger()
+
+    # Redirect print() to the logger
+    sys.stdout = PrintLogger(logger)
+
     # Initialize app_config (to ensure Firebase credentials are loaded)
     # Beware this must be done only once in the main thread of the whole application
     # and before any Firebase operation is performed.
@@ -14,6 +23,8 @@ def main(fecha: str):
 
     container = Container()
     # Configure the container with values from app_config
+    container.config.ruta_archivo_cartera.from_value(
+        app_config.ruta_archivo_cartera)
     container.config.directorio_pagos.from_value(app_config.directorio_pagos)
     container.config.directorio_reportes.from_value(
         app_config.directorio_reportes
@@ -44,4 +55,4 @@ def main(fecha: str):
 
 
 if __name__ == "__main__":
-    main("20250301")
+    main("20250410")

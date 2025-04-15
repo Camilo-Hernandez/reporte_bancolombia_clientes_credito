@@ -1,4 +1,5 @@
 # infrastructure/extractors/extractor_pago_pdf.py
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Dict, List

@@ -1,9 +1,12 @@
+# tests\infrastructure\test_generador_reporte_txt.py
+
 from datetime import date
 import os
 import pytest
 from unittest.mock import MagicMock, patch
 from infrastructure.report_generators.generador_reporte_txt import GeneradorReporteTxt
 from domain.models.models import (
+    EstadoPago,
     ResultadoPagoCliente,
     TipoCuentaBancaria,
     Pedido,
@@ -40,7 +43,7 @@ def resultado_pago_cliente():
         fecha_pedido=date(2023, 9, 1),
         forma_pago_raw="A 30 días",
         razon_social="Cliente A",
-        estado_pago="parcial",
+        estado_pago=EstadoPago.PARCIAL,
     )
 
     pedido_2 = Pedido(
@@ -52,7 +55,7 @@ def resultado_pago_cliente():
         fecha_pedido=date(2023, 9, 5),
         forma_pago_raw="A 30 días",
         razon_social="Cliente A",
-        estado_pago="pagado",
+        estado_pago=EstadoPago.PAGADO,
     )
 
     pedido_3 = Pedido(
@@ -64,7 +67,7 @@ def resultado_pago_cliente():
         fecha_pedido=date(2023, 9, 10),
         forma_pago_raw="A 30 días",
         razon_social="Cliente A",
-        estado_pago="pendiente",
+        estado_pago=EstadoPago.PENDIENTE,
     )
 
     # Mock data for ResultadoPagoCliente
@@ -76,7 +79,7 @@ def resultado_pago_cliente():
         deuda_total_anterior=Decimal("4000.00"),
         deuda_restante=Decimal("500.00"),
         facturas_pagadas=[pedido_1, pedido_2],
-        factura_parcial=pedido_3,
+        facturas_parciales=[pedido_3],
         facturas_pendientes=[],
         tipo_cliente=TipoCliente.CREDITO,
     )
@@ -116,15 +119,16 @@ def test_generar_contenido_archivo(
     generador_reporte_txt, resultado_pago_cliente
 ):
     # Run the generar method
-    generador_reporte_txt.generar(resultado_pago_cliente, TipoCuentaBancaria.AHORROS.value)
+    generador_reporte_txt.generar(
+        resultado_pago_cliente, TipoCuentaBancaria.AHORROS.value)
 
     # Verify the content of the first file
     file_path = "./tests/test_reports/ahorros/20231001/123456789_1.txt"
     with open(file_path, "r") as file:
         lines = file.readlines()
         assert len(lines) == 2  # Two rows for two cuentas_bancarias
-        assert lines[0] == "1101,123456789,,P001,,1000.00" + ","* 10 + "\n"
-        assert lines[1] == "2202,123456789,,P001,,-1000.00" + ","* 10 + "\n"
+        assert lines[0] == "1101,123456789,,P001,,1000.00" + "," * 10 + "\n"
+        assert lines[1] == "2202,123456789,,P001,,-1000.00" + "," * 10 + "\n"
 
     # Clean up after test
     for i in range(1, 4):
@@ -139,7 +143,8 @@ def test_manejar_excepciones_log_error(
 ):
     # Mock an exception in the generar method
     with patch("builtins.open", side_effect=Exception("Mocked exception")):
-        generador_reporte_txt.generar(resultado_pago_cliente, TipoCuentaBancaria.AHORROS.value)
+        generador_reporte_txt.generar(
+            resultado_pago_cliente, TipoCuentaBancaria.AHORROS.value)
 
     # Verify that the error was logged
     assert "Error ejecutando generar >>> Mocked exception" in caplog.text

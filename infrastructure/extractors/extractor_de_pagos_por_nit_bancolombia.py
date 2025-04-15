@@ -1,4 +1,5 @@
 # infrastructure/extractors/extractor_de_pagos_por_nit_bancolombia.py
+
 import os
 import re
 import json

@@ -70,15 +70,16 @@ class FirebaseRepositorioPedidos(AbstractRepositorioPedidos):
         )  # Handle case where ref.get() returns None
         pedidos_mapeados = []
         for id_pedido, data in pedidos_crudos.items():
+            if id_pedido is None or not id_pedido.strip():
+                continue  # Skip empty or None IDs
             if data and data.get("nit") == nit:  # Check if data is not None/empty
                 try:
                     pedido = self._mapear_pedido(id_pedido, data)
                     pedidos_mapeados.append(pedido)
                 except ValueError as e:
+                    continue
                     # Log or handle the mapping error for this specific pedido
-                    print(
-                        # f"Skipping pedido {id_pedido} for NIT {nit} due to mapping error: {e}"
-                    )
+                    # print(f"Skipping pedido {id_pedido} for NIT {nit} due to mapping error: {e}"                    )
         return pedidos_mapeados
 
     def obtener_pedidos_credito(self) -> List[Pedido]:

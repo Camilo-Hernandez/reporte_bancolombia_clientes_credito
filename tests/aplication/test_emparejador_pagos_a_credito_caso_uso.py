@@ -1,7 +1,9 @@
+# tests\aplication\test_emparejador_pagos_a_credito_caso_uso.py
+
 import pytest
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 from unittest.mock import MagicMock
 
 from di.container import Container
@@ -90,7 +92,7 @@ def test_generar_reporte_credito_ejecucion_correcta(pagos_ejemplo, pedidos_ejemp
             fecha_pago=date(2025, 3, 30),
             pago_extracto=Decimal("800.00"),
             facturas_pagadas=pedidos_ejemplo,
-            factura_parcial=None,
+            facturas_parciales = [],
             facturas_pendientes=[],
             deuda_total_anterior=Decimal("800.00"),
             deuda_restante=Decimal("0.00"),
@@ -105,8 +107,8 @@ def test_generar_reporte_credito_ejecucion_correcta(pagos_ejemplo, pedidos_ejemp
     assert resultado.nit_cliente == "12345"
     assert resultado.pago_extracto == Decimal("800.00")
     assert isinstance(resultado.facturas_pagadas, list)
-    assert isinstance(resultado.factura_parcial, Optional[str])
-    assert resultado.factura_parcial is None
+    assert isinstance(resultado.facturas_parciales, list)
+    assert resultado.facturas_parciales == []
     assert isinstance(resultado.facturas_pendientes, list)
     assert resultado.pago_extracto == Decimal("800.00")
     assert resultado.deuda_restante == Decimal("0.00")
@@ -191,7 +193,7 @@ def test_integracion_emparejador_pagos_a_credito(container):
             fecha_pago=date(2025, 3, 30),
             pago_extracto=Decimal("800.00"),
             facturas_pagadas=container.repositorio_pedidos().obtener_pedidos_credito.return_value,
-            factura_parcial=None,
+            facturas_parciales=[],
             facturas_pendientes=[],
             deuda_total_anterior=Decimal("800.00"),
             deuda_restante=Decimal("0.00"),
@@ -218,7 +220,7 @@ def test_integracion_emparejador_pagos_a_credito(container):
     assert resultado.nit_cliente == "12345"
     assert resultado.pago_extracto == Decimal("800.00")
     assert isinstance(resultado.facturas_pagadas, list)
-    assert resultado.factura_parcial is None
+    assert resultado.facturas_parciales == []
     assert isinstance(resultado.facturas_pendientes, list)
     assert resultado.deuda_restante == Decimal("0.00")
     assert len(resultado.facturas_pagadas) == 2
